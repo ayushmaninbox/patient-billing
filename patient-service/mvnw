@@ -1,0 +1,113 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Maven Wrapper startup batch script, version 3.2.0
+#
+# Optional ENV vars
+# -----------------
+#   JAVA_HOME - location of a JDK home dir, if not set "java" must be in the PATH
+#   MAVEN_OPTS - parameters passed to the Java VM when running Maven
+#     e.g. to debug Maven itself, use
+#       set MAVEN_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=8000
+#   MAVEN_SKIP_RC - flag to disable loading of mavenrc files
+# ----------------------------------------------------------------------------
+
+if [ -z "$MAVEN_SKIP_RC" ]; then
+  if [ -f /etc/mavenrc ]; then
+    . /etc/mavenrc
+  fi
+  if [ -f "$HOME/.mavenrc" ]; then
+    . "$HOME/.mavenrc"
+  fi
+fi
+
+# OS specific support. $var _must_ be set to either true or false.
+cygwin=false;
+darwin=false;
+case "`uname`" in
+  CYGWIN*) cygwin=true ;;
+  Darwin*) darwin=true ;;
+esac
+
+if [ -z "$JAVA_HOME" ] ; then
+  if [ -r /etc/gentoo-release ] ; then
+    JAVA_HOME=`java-config --jre-home`
+  fi
+fi
+
+if [ -z "$JAVA_HOME" ] ; then
+  if [ -x /usr/libexec/java_home ]; then
+    JAVA_HOME=`/usr/libexec/java_home`
+  fi
+fi
+
+# For Cygwin, ensure paths are in UNIX format before anything is touched
+if $cygwin ; then
+  [ -n "$JAVA_HOME" ] && JAVA_HOME=`cygpath --unix "$JAVA_HOME"`
+fi
+
+if [ -z "$JAVA_HOME" ]; then
+  if $darwin ; then
+    if [ -x /usr/libexec/java_home ]; then
+      JAVA_HOME=`/usr/libexec/java_home`
+    else
+      JAVA_HOME=/Library/Java/Home
+    fi
+  fi
+fi
+
+if [ -z "$JAVA_HOME" ]; then
+  javaExecutable="`which java`"
+  if [ -n "$javaExecutable" ]; then
+    case "$javaExecutable" in
+      /usr/bin/java)
+        javaExecutable="`readlink -f \"$javaExecutable\"`"
+        ;;
+    esac
+    JAVA_HOME="`dirname \"$javaExecutable\"`"
+    JAVA_HOME="`dirname \"$JAVA_HOME\"`"
+  fi
+fi
+
+if [ -z "$JAVA_HOME" ]; then
+  echo "Error: JAVA_HOME is not defined correctly." >&2
+  echo "  We cannot execute $javaExecutable" >&2
+  exit 1
+fi
+
+JAVACMD="$JAVA_HOME/bin/java"
+
+# Extracting Maven properties
+wrapperJarPath=".mvn/wrapper/maven-wrapper.jar"
+wrapperPropertiesPath=".mvn/wrapper/maven-wrapper.properties"
+
+if [ ! -f "$wrapperJarPath" ]; then
+    echo "Downloading Maven Wrapper..."
+    # Attempt to download the jar if missing
+    curl -sLo "$wrapperJarPath" https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.2.0/maven-wrapper-3.2.0.jar
+fi
+
+exec "$JAVACMD" \
+  $MAVEN_OPTS \
+  -classpath "$wrapperJarPath" \
+  "-Dmaven.multiModuleProjectDirectory=$MAVEN_PROJECTBASEDIR" \
+  org.apache.maven.wrapper.MavenWrapperMain \
+  "$@"
