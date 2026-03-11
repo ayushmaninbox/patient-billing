@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import './index.css'
+import { jsPDF } from 'jspdf'
 
 interface Patient {
   id: string;
@@ -30,12 +31,21 @@ function App() {
   const [data, setData] = useState<PatientDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editPatient, setEditPatient] = useState<Patient | null>(null)
+  
+  const [isAdding, setIsAdding] = useState(false)
+  const [newPatient, setNewPatient] = useState<Patient>({
+    id: '', name: '', email: '', phone: '', address: '', bloodGroup: '', gender: '', dob: ''
+  })
 
   const fetchPatientData = async () => {
     if (!patientId) return
     setLoading(true)
     setError('')
     setData(null)
+    setIsEditing(false)
+    setIsAdding(false)
 
     try {
       const response = await fetch(`http://localhost:8081/api/patients/${patientId}`)
@@ -45,11 +55,87 @@ function App() {
       }
       const result = await response.json()
       setData(result)
+      setEditPatient(result.patient)
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSavePatient = async () => {
+    if (!editPatient || !data) return
+    try {
+      const response = await fetch(`http://localhost:8081/api/patients/${data.patient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editPatient)
+      })
+      if (!response.ok) throw new Error('Failed to update patient')
+      const updated = await response.json()
+      setData({ ...data, patient: updated })
+      setIsEditing(false)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
+  const handleAddPatient = async () => {
+    if (!newPatient.id || !newPatient.name) return alert('ID and Name are required')
+    try {
+      const response = await fetch(`http://localhost:8081/api/patients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPatient)
+      })
+      if (!response.ok) {
+        const msg = await response.text()
+        throw new Error(msg || 'Failed to add patient')
+      }
+      const saved = await response.json()
+      alert(`Patient ${saved.name} added successfully!`)
+      setPatientId(saved.id)
+      setIsAdding(false)
+      fetchPatientData()
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
+  const generatePDF = () => {
+    if (!data) return
+    const doc = new jsPDF()
+    const p = data.patient
+
+    doc.setFontSize(22)
+    doc.text('MedTrack Pro - Detailed Invoice', 105, 20, { align: 'center' })
+    
+    doc.setFontSize(14)
+    doc.text(`Patient: ${p.name} (${p.id})`, 20, 40)
+    doc.text(`Email: ${p.email}`, 20, 50)
+    doc.text(`Phone: ${p.phone}`, 20, 60)
+    doc.text(`Address: ${p.address}`, 20, 70)
+    
+    doc.line(20, 75, 190, 75)
+    
+    doc.setFontSize(16)
+    doc.text('Billing Records', 20, 85)
+    
+    let y = 95
+    data.billingRecords.forEach((record, i) => {
+      doc.setFontSize(12)
+      doc.text(`Invoice #INV-2026-${String(record.id).padStart(5, '0')}`, 20, y)
+      doc.text(`Amount: $${record.amount.toLocaleString()}`, 20, y + 7)
+      doc.text(`Status: ${record.status}`, 20, y + 14)
+      doc.text(`Due Date: ${record.dueDate}`, 20, y + 21)
+      y += 35
+      if (y > 270) {
+        doc.addPage()
+        y = 20
+      }
+    })
+
+    doc.save(`Invoice_${p.id}_${new Date().getTime()}.pdf`)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -78,12 +164,68 @@ function App() {
         </div>
 
         <div className="nav-actions">
+          <button className="btn-secondary" onClick={() => setIsAdding(!isAdding)}>
+            {isAdding ? 'View Records' : 'Add Patient'}
+          </button>
           <div className="user-profile">AD</div>
         </div>
       </nav>
 
       <main className="dashboard-main">
-        {data ? (
+        {error && (
+          <div className="status-banner error" style={{margin: '0 2rem 1rem'}}>
+            <span>⚠️</span> {error}
+          </div>
+        )}
+
+        {isAdding ? (
+          <div className="add-patient-container">
+            <div className="dashboard-header">
+              <h2>Register New Patient</h2>
+              <p>Complete the clinical profile to initiate records tracking.</p>
+            </div>
+            
+            <section className="card add-form">
+              <div className="grid-form">
+                <div className="form-group">
+                  <label>Patient ID (Unique)</label>
+                  <input type="text" className="edit-input" placeholder="e.g. P104" value={newPatient.id} onChange={e => setNewPatient({...newPatient, id: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input type="text" className="edit-input" placeholder="John Doe" value={newPatient.name} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Email Address</label>
+                  <input type="email" className="edit-input" placeholder="john@example.com" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Contact Number</label>
+                  <input type="text" className="edit-input" placeholder="+1..." value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
+                </div>
+                <div className="form-group" style={{gridColumn: 'span 2'}}>
+                  <label>Home Address</label>
+                  <textarea className="edit-input" placeholder="Complete address..." value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Blood Group</label>
+                  <input type="text" className="edit-input" placeholder="A+" value={newPatient.bloodGroup} onChange={e => setNewPatient({...newPatient, bloodGroup: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Gender</label>
+                  <input type="text" className="edit-input" placeholder="Male/Female" value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Date of Birth</label>
+                  <input type="date" className="edit-input" value={newPatient.dob} onChange={e => setNewPatient({...newPatient, dob: e.target.value})} />
+                </div>
+              </div>
+              <div className="form-footer">
+                <button className="btn-primary" onClick={handleAddPatient}>Register Patient</button>
+              </div>
+            </section>
+          </div>
+        ) : data ? (
           <>
             <div className="dashboard-header">
               <h2>Dashboard Overview</h2>
@@ -94,34 +236,66 @@ function App() {
               <section className="card">
                 <div className="card-header">
                   <h3>Patient Details</h3>
-                  <a href="#" className="edit-link">Edit Info</a>
+                  {!isEditing ? (
+                    <button className="edit-link-btn" onClick={() => setIsEditing(true)}>Edit Info</button>
+                  ) : (
+                    <div className="edit-actions">
+                      <button className="btn-small save" onClick={handleSavePatient}>Save</button>
+                      <button className="btn-small cancel" onClick={() => setIsEditing(false)}>Cancel</button>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="info-row">
-                  <div className="info-label">Full Name</div>
-                  <div className="info-value">{data.patient.name}</div>
-                </div>
-                
-                <div className="info-row">
-                  <div className="info-label">Identity ID</div>
-                  <div className="info-value">{data.patient.id}</div>
-                </div>
-
-                <div className="info-row">
-                  <div className="info-label">Blood Type</div>
-                  <div className="info-value">{data.patient.bloodGroup}</div>
-                </div>
-
-                <div className="info-row">
-                  <div className="info-label">Residential Address</div>
-                  <div className="info-value">
-                    {data.patient.address}
+                <div className="info-body">
+                  <div className="info-row">
+                    <div className="info-label">Full Name</div>
+                    {isEditing ? (
+                      <input className="edit-input" value={editPatient?.name} onChange={e => setEditPatient({...editPatient!, name: e.target.value})} />
+                    ) : (
+                      <div className="info-value">{data.patient.name}</div>
+                    )}
                   </div>
-                </div>
+                  
+                  <div className="info-row">
+                    <div className="info-label">Identity ID</div>
+                    <div className="info-value">{data.patient.id}</div>
+                  </div>
 
-                <div className="info-row">
-                  <div className="info-label">Contact</div>
-                  <div className="info-value">{data.patient.phone}</div>
+                  <div className="info-row">
+                    <div className="info-label">Email Address</div>
+                    {isEditing ? (
+                      <input className="edit-input" value={editPatient?.email} onChange={e => setEditPatient({...editPatient!, email: e.target.value})} />
+                    ) : (
+                      <div className="info-value">{data.patient.email}</div>
+                    )}
+                  </div>
+
+                  <div className="info-row">
+                    <div className="info-label">Contact Number</div>
+                    {isEditing ? (
+                      <input className="edit-input" value={editPatient?.phone} onChange={e => setEditPatient({...editPatient!, phone: e.target.value})} />
+                    ) : (
+                      <div className="info-value">{data.patient.phone}</div>
+                    )}
+                  </div>
+
+                  <div className="info-row">
+                    <div className="info-label">Residential Address</div>
+                    {isEditing ? (
+                      <textarea className="edit-input" value={editPatient?.address} onChange={e => setEditPatient({...editPatient!, address: e.target.value})} />
+                    ) : (
+                      <div className="info-value">{data.patient.address}</div>
+                    )}
+                  </div>
+
+                  <div className="info-row">
+                    <div className="info-label">Blood Type</div>
+                    {isEditing ? (
+                      <input className="edit-input" value={editPatient?.bloodGroup} onChange={e => setEditPatient({...editPatient!, bloodGroup: e.target.value})} />
+                    ) : (
+                      <div className="info-value">{data.patient.bloodGroup}</div>
+                    )}
+                  </div>
                 </div>
               </section>
 
@@ -163,7 +337,7 @@ function App() {
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>No billing records found.</p>
                   )}
                   
-                  <button className="btn-primary">Generate Detailed Invoice PDF</button>
+                  <button className="btn-primary" onClick={generatePDF}>Generate Detailed Invoice PDF</button>
                 </div>
               </section>
             </div>
