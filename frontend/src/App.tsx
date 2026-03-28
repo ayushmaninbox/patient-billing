@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import './index.css'
-import { jsPDF } from 'jspdf'
 
 interface Patient {
   id: string;
@@ -33,11 +32,14 @@ function App() {
   const [error, setError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
+  const [isCopied, setIsCopied] = useState(false)
   
   const [isAdding, setIsAdding] = useState(false)
   const [newPatient, setNewPatient] = useState<Patient>({
     id: '', name: '', email: '', phone: '', address: '', bloodGroup: '', gender: '', dob: ''
   })
+  const [isBillingEditing, setIsBillingEditing] = useState(false)
+  const [editBillingRecords, setEditBillingRecords] = useState<BillingRecord[]>([])
 
   const fetchPatientData = async () => {
     if (!patientId) return
@@ -102,41 +104,46 @@ function App() {
     }
   }
 
-  const generatePDF = () => {
+  const handleSaveBilling = async () => {
     if (!data) return
-    const doc = new jsPDF()
-    const p = data.patient
-
-    doc.setFontSize(22)
-    doc.text('MedTrack Pro - Detailed Invoice', 105, 20, { align: 'center' })
-    
-    doc.setFontSize(14)
-    doc.text(`Patient: ${p.name} (${p.id})`, 20, 40)
-    doc.text(`Email: ${p.email}`, 20, 50)
-    doc.text(`Phone: ${p.phone}`, 20, 60)
-    doc.text(`Address: ${p.address}`, 20, 70)
-    
-    doc.line(20, 75, 190, 75)
-    
-    doc.setFontSize(16)
-    doc.text('Billing Records', 20, 85)
-    
-    let y = 95
-    data.billingRecords.forEach((record, i) => {
-      doc.setFontSize(12)
-      doc.text(`Invoice #INV-2026-${String(record.id).padStart(5, '0')}`, 20, y)
-      doc.text(`Amount: $${record.amount.toLocaleString()}`, 20, y + 7)
-      doc.text(`Status: ${record.status}`, 20, y + 14)
-      doc.text(`Due Date: ${record.dueDate}`, 20, y + 21)
-      y += 35
-      if (y > 270) {
-        doc.addPage()
-        y = 20
-      }
-    })
-
-    doc.save(`Invoice_${p.id}_${new Date().getTime()}.pdf`)
+    try {
+      setLoading(true)
+      const updatePromises = editBillingRecords.map(record => 
+        fetch(`http://localhost:8082/api/billing/${record.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        })
+      )
+      
+      const results = await Promise.all(updatePromises)
+      const failed = results.filter(r => !r.ok)
+      
+      if (failed.length > 0) throw new Error('Some billing records failed to update')
+      
+      await fetchPatientData()
+      setIsBillingEditing(false)
+      alert('Billing records updated successfully!')
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
+
+  const copyToClipboard = async () => {
+    if (!data) return
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy data:', err)
+      alert('Failed to copy data to clipboard')
+    }
+  }
+
+
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') fetchPatientData()
@@ -302,7 +309,17 @@ function App() {
               <section className="card">
                 <div className="card-header">
                   <h3>Billing Information</h3>
-                  <span className="info-label" style={{background: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '4px'}}>Q1 2026</span>
+                  {!isBillingEditing ? (
+                    <button className="edit-link-btn" onClick={() => {
+                      setIsBillingEditing(true);
+                      setEditBillingRecords([...data.billingRecords]);
+                    }}>Edit Bills</button>
+                  ) : (
+                    <div className="edit-actions">
+                      <button className="btn-small save" onClick={handleSaveBilling}>Save All</button>
+                      <button className="btn-small cancel" onClick={() => setIsBillingEditing(false)}>Cancel</button>
+                    </div>
+                  )}
                 </div>
 
                 {data.billingStatus === 'FALLBACK' && (
@@ -313,9 +330,9 @@ function App() {
                 )}
 
                 <div className="invoice-preview">
-                  {data.billingRecords.length > 0 ? (
-                    data.billingRecords.map((record, index) => (
-                      <div key={record.id} style={{ marginBottom: index !== data.billingRecords.length - 1 ? '2rem' : '0' }}>
+                  {(isBillingEditing ? editBillingRecords : data.billingRecords).length > 0 ? (
+                    (isBillingEditing ? editBillingRecords : data.billingRecords).map((record, index) => (
+                      <div key={record.id} style={{ marginBottom: index !== (isBillingEditing ? editBillingRecords : data.billingRecords).length - 1 ? '2rem' : '0' }}>
                         <div className="invoice-id">INVOICE ID</div>
                         <div className="invoice-meta">
                           <div className="info-value">#INV-2026-{String(record.id).padStart(5, '0')}</div>
@@ -325,11 +342,45 @@ function App() {
                         <div className="total-due">
                           <div>
                             <div className="info-label">Total Outstanding Amount</div>
-                            <div className="amount">${record.amount.toLocaleString()}</div>
+                            {isBillingEditing ? (
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <span style={{ marginRight: '4px' }}>$</span>
+                                <input 
+                                  type="number" 
+                                  className="edit-input" 
+                                  style={{ width: '120px' }}
+                                  value={record.amount} 
+                                  onChange={e => {
+                                    const updated = [...editBillingRecords];
+                                    updated[index] = { ...updated[index], amount: parseFloat(e.target.value) || 0 };
+                                    setEditBillingRecords(updated);
+                                  }} 
+                                />
+                              </div>
+                            ) : (
+                              <div className="amount">${record.amount.toLocaleString()}</div>
+                            )}
                           </div>
-                          <div className={`status-pill status-${record.status}`}>
-                            {record.status === 'PENDING' ? '● Pending Payment' : record.status}
-                          </div>
+                          
+                          {isBillingEditing ? (
+                            <select 
+                              className="edit-input"
+                              value={record.status}
+                              onChange={e => {
+                                const updated = [...editBillingRecords];
+                                updated[index] = { ...updated[index], status: e.target.value };
+                                setEditBillingRecords(updated);
+                              }}
+                            >
+                              <option value="PAID">PAID</option>
+                              <option value="PENDING">PENDING</option>
+                              <option value="OVERDUE">OVERDUE</option>
+                            </select>
+                          ) : (
+                            <div className={`status-pill status-${record.status}`}>
+                              {record.status === 'PENDING' ? '● Pending Payment' : record.status}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))
@@ -337,7 +388,43 @@ function App() {
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>No billing records found.</p>
                   )}
                   
-                  <button className="btn-primary" onClick={generatePDF}>Generate Detailed Invoice PDF</button>
+                  {!isBillingEditing && (
+                    <button 
+                      className={isCopied ? "btn-secondary" : "btn-primary"}
+                      onClick={copyToClipboard}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.875rem', 
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        transition: 'all 0.3s ease',
+                        backgroundColor: isCopied ? '#10b981' : undefined,
+                        borderColor: isCopied ? '#10b981' : undefined,
+                        color: isCopied ? 'white' : undefined,
+                        marginTop: '1.5rem'
+                      }}
+                    >
+                      {isCopied ? (
+                        <>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          Data Copied to Clipboard!
+                        </>
+                      ) : (
+                        <>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                          </svg>
+                          Copy Patient Data (JSON)
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </section>
             </div>
@@ -348,11 +435,13 @@ function App() {
           </div>
         ) : (
           <div className="empty-state">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" style={{marginBottom: '1rem', opacity: 0.2}}>
-              <path d="M19 11H5M19 11C20.1046 11 21 11.8954 21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V13C3 11.8954 3.89543 11 5 11M19 11V9C19 7.89543 18.1046 7 17 7M5 11V9C5 7.89543 5.89543 7 7 7M7 7V5C7 3.89543 7.89543 3 9 3H15C16.1046 3 17 3.89543 17 5V7M7 7H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <h3>No Patient Selected</h3>
-            <p>Please enter a Patient ID in the search bar above to view clinical and financial records.</p>
+            <div className="empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 11H5M19 11C20.1046 11 21 11.8954 21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V13C3 11.8954 3.89543 11 5 11M19 11V9C19 7.89543 18.1046 7 17 7M5 11V9C5 7.89543 5.89543 7 7 7M7 7V5C7 3.89543 7.89543 3 9 3H15C16.1046 3 17 3.89543 17 5V7M7 7H17"/>
+              </svg>
+            </div>
+            <h3>Patient Dashboard Ready</h3>
+            <p>Enter a Patient ID in the search bar above to securely access clinical profiles and financial reports.</p>
           </div>
         )}
       </main>

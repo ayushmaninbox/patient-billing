@@ -1,0 +1,61 @@
+[ {
+  "id" : 1,
+  "patientId" : "P101",
+  "amount" : 12450.00,
+  "status" : "PAID",
+  "dueDate" : "2026-03-13"
+}, {
+  "id" : 2,
+  "patientId" : "P101",
+  "amount" : 2100.50,
+  "status" : "PENDING",
+  "dueDate" : "2026-04-07"
+}, {
+  "id" : 3,
+  "patientId" : "P102",
+  "amount" : 850.25,
+  "status" : "PAID",
+  "dueDate" : "2026-02-26"
+}, {
+  "id" : 4,
+  "patientId" : "P102",
+  "amount" : 420.00,
+  "status" : "PAID",
+  "dueDate" : "2026-03-23"
+}, {
+  "id" : 5,
+  "patientId" : "P103",
+  "amount" : 45000.00,
+  "status" : "PENDING",
+  "dueDate" : "2026-05-12"
+}, {
+  "id" : 6,
+  "patientId" : "P104",
+  "amount" : 1200.75,
+  "status" : "PAID",
+  "dueDate" : "2026-03-16"
+}, {
+  "id" : 7,
+  "patientId" : "P104",
+  "amount" : 350.00,
+  "status" : "PENDING",
+  "dueDate" : "2026-04-17"
+}, {
+  "id" : 8,
+  "patientId" : "P105",
+  "amount" : 500.00,
+  "status" : "PAID",
+  "dueDate" : "2026-02-11"
+}, {
+  "id" : 9,
+  "patientId" : "P105",
+  "amount" : 150.50,
+  "status" : "PENDING",
+  "dueDate" : "2026-04-02"
+}, {
+  "id" : 10,
+  "patientId" : "P106",
+  "amount" : 25000.00,
+  "status" : "OVERDUE",
+  "dueDate" : "2026-01-27"
+} ]

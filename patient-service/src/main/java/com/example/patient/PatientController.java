@@ -3,6 +3,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import java.io.File;
 import java.util.List;
 
@@ -26,11 +30,21 @@ public class PatientController {
     @GetMapping("/{id}")
     public PatientDetailDTO getDetails(@PathVariable String id) {
         Patient p = repo.findById(id).orElseThrow();
-        List<BillingRecordDTO> b = client.getBillingRecords(id);
+        BillingClient.BillingResponse response = client.getBillingRecords(id);
         PatientDetailDTO dto = new PatientDetailDTO();
-        dto.setPatient(p); dto.setBillingRecords(b);
-        dto.setBillingStatus(b.isEmpty() ? "FALLBACK" : "SUCCESS");
+        dto.setPatient(p); 
+        dto.setBillingRecords(response.records);
+        dto.setBillingStatus(response.isFallback ? "FALLBACK" : "SUCCESS");
         return dto;
+    }
+
+    @GetMapping("/{id}/export")
+    public ResponseEntity<PatientDetailDTO> getExport(@PathVariable String id) {
+        PatientDetailDTO dto = getDetails(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentDispositionFormData("attachment", "PatientData_" + id + "_" + System.currentTimeMillis() + ".json");
+        return new ResponseEntity<>(dto, headers, HttpStatus.OK);
     }
 
     @PostMapping
