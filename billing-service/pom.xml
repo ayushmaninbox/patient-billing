@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.3</version>
+		<version>3.3.4</version>
 		<relativePath/>
 	</parent>
 	<groupId>com.example</groupId>
@@ -14,7 +14,7 @@
 	<name>billing-service</name>
 	<description>Billing Service</description>
 	<properties>
-		<java.version>25</java.version>
+		<java.version>17</java.version>
 		<lombok.version>1.18.36</lombok.version>
 	</properties>
 	<dependencies>

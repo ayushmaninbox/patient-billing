@@ -26,6 +26,13 @@ public class BillingController {
         return billingRepository.findByPatientId(patientId);
     }
 
+    @PostMapping
+    public BillingRecord createBillingRecord(@RequestBody BillingRecord record) {
+        BillingRecord saved = billingRepository.save(record);
+        syncJson();
+        return saved;
+    }
+
     @PutMapping("/{id}")
     public BillingRecord updateBillingRecord(@PathVariable Long id, @RequestBody BillingRecord updated) {
         BillingRecord record = billingRepository.findById(id).orElseThrow();

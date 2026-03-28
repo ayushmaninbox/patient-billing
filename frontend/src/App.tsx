@@ -38,7 +38,11 @@ function App() {
   const [newPatient, setNewPatient] = useState<Patient>({
     id: '', name: '', email: '', phone: '', address: '', bloodGroup: '', gender: '', dob: ''
   })
+  const [newBilling, setNewBilling] = useState({
+    amount: 0, status: 'PENDING', dueDate: new Date().toISOString().split('T')[0]
+  })
   const [isBillingEditing, setIsBillingEditing] = useState(false)
+  const [isAddingNewBill, setIsAddingNewBill] = useState(false)
   const [editBillingRecords, setEditBillingRecords] = useState<BillingRecord[]>([])
 
   const fetchPatientData = async () => {
@@ -48,6 +52,7 @@ function App() {
     setData(null)
     setIsEditing(false)
     setIsAdding(false)
+    setIsAddingNewBill(false)
 
     try {
       const response = await fetch(`http://localhost:8081/api/patients/${patientId}`)
@@ -85,6 +90,7 @@ function App() {
   const handleAddPatient = async () => {
     if (!newPatient.id || !newPatient.name) return alert('ID and Name are required')
     try {
+      setLoading(true)
       const response = await fetch(`http://localhost:8081/api/patients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,12 +101,58 @@ function App() {
         throw new Error(msg || 'Failed to add patient')
       }
       const saved = await response.json()
-      alert(`Patient ${saved.name} added successfully!`)
+      
+      // If billing info provided, add it
+      if (newBilling.amount > 0) {
+        await fetch(`http://localhost:8082/api/billing`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: saved.id,
+            amount: newBilling.amount,
+            status: newBilling.status,
+            dueDate: newBilling.dueDate
+          })
+        })
+      }
+
+      alert(`Patient ${saved.name} registered successfully!`)
       setPatientId(saved.id)
       setIsAdding(false)
+      setNewPatient({ id: '', name: '', email: '', phone: '', address: '', bloodGroup: '', gender: '', dob: '' })
+      setNewBilling({ amount: 0, status: 'PENDING', dueDate: new Date().toISOString().split('T')[0] })
       fetchPatientData()
     } catch (err: any) {
       alert(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddBill = async () => {
+    if (!data) return
+    try {
+      setLoading(true)
+      const response = await fetch(`http://localhost:8082/api/billing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: data.patient.id,
+          amount: newBilling.amount,
+          status: newBilling.status,
+          dueDate: newBilling.dueDate
+        })
+      })
+      if (!response.ok) throw new Error('Failed to add billing record')
+      
+      await fetchPatientData()
+      setIsAddingNewBill(false)
+      setNewBilling({ amount: 0, status: 'PENDING', dueDate: new Date().toISOString().split('T')[0] })
+      alert('Billing record added successfully!')
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -192,45 +244,74 @@ function App() {
               <p>Complete the clinical profile to initiate records tracking.</p>
             </div>
             
-            <section className="card add-form">
-              <div className="grid-form">
-                <div className="form-group">
-                  <label>Patient ID (Unique)</label>
-                  <input type="text" className="edit-input" placeholder="e.g. P104" value={newPatient.id} onChange={e => setNewPatient({...newPatient, id: e.target.value})} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem' }}>
+              <section className="card add-form">
+                <div className="card-header">
+                  <h3>Clinical Profile</h3>
                 </div>
-                <div className="form-group">
-                  <label>Full Name</label>
-                  <input type="text" className="edit-input" placeholder="John Doe" value={newPatient.name} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
+                <div className="grid-form">
+                  <div className="form-group">
+                    <label>Patient ID (Unique)</label>
+                    <input type="text" className="edit-input" placeholder="e.g. P104" value={newPatient.id} onChange={e => setNewPatient({...newPatient, id: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Full Name</label>
+                    <input type="text" className="edit-input" placeholder="John Doe" value={newPatient.name} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Email Address</label>
+                    <input type="email" className="edit-input" placeholder="john@example.com" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Contact Number</label>
+                    <input type="text" className="edit-input" placeholder="+1..." value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
+                  </div>
+                  <div className="form-group" style={{gridColumn: 'span 2'}}>
+                    <label>Home Address</label>
+                    <textarea className="edit-input" placeholder="Complete address..." value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Blood Group</label>
+                    <input type="text" className="edit-input" placeholder="A+" value={newPatient.bloodGroup} onChange={e => setNewPatient({...newPatient, bloodGroup: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <input type="text" className="edit-input" placeholder="Male/Female" value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Date of Birth</label>
+                    <input type="date" className="edit-input" value={newPatient.dob} onChange={e => setNewPatient({...newPatient, dob: e.target.value})} />
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Email Address</label>
-                  <input type="email" className="edit-input" placeholder="john@example.com" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} />
+              </section>
+
+              <section className="card add-form">
+                <div className="card-header">
+                  <h3>Initial Billing (Optional)</h3>
                 </div>
-                <div className="form-group">
-                  <label>Contact Number</label>
-                  <input type="text" className="edit-input" placeholder="+1..." value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
+                <div className="grid-form" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="form-group">
+                    <label>Outstanding Amount ($)</label>
+                    <input type="number" className="edit-input" placeholder="0.00" value={newBilling.amount} onChange={e => setNewBilling({...newBilling, amount: parseFloat(e.target.value) || 0})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Payment Status</label>
+                    <select className="edit-input" value={newBilling.status} onChange={e => setNewBilling({...newBilling, status: e.target.value})}>
+                      <option value="PENDING">PENDING</option>
+                      <option value="PAID">PAID</option>
+                      <option value="OVERDUE">OVERDUE</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Due Date</label>
+                    <input type="date" className="edit-input" value={newBilling.dueDate} onChange={e => setNewBilling({...newBilling, dueDate: e.target.value})} />
+                  </div>
                 </div>
-                <div className="form-group" style={{gridColumn: 'span 2'}}>
-                  <label>Home Address</label>
-                  <textarea className="edit-input" placeholder="Complete address..." value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} />
+                <div className="form-footer" style={{ marginTop: 'auto', paddingTop: '2rem' }}>
+                  <button className="btn-primary" style={{ width: '100%' }} onClick={handleAddPatient}>Complete Registration</button>
                 </div>
-                <div className="form-group">
-                  <label>Blood Group</label>
-                  <input type="text" className="edit-input" placeholder="A+" value={newPatient.bloodGroup} onChange={e => setNewPatient({...newPatient, bloodGroup: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Gender</label>
-                  <input type="text" className="edit-input" placeholder="Male/Female" value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Date of Birth</label>
-                  <input type="date" className="edit-input" value={newPatient.dob} onChange={e => setNewPatient({...newPatient, dob: e.target.value})} />
-                </div>
-              </div>
-              <div className="form-footer">
-                <button className="btn-primary" onClick={handleAddPatient}>Register Patient</button>
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
         ) : data ? (
           <>
@@ -309,15 +390,23 @@ function App() {
               <section className="card">
                 <div className="card-header">
                   <h3>Billing Information</h3>
-                  {!isBillingEditing ? (
-                    <button className="edit-link-btn" onClick={() => {
-                      setIsBillingEditing(true);
-                      setEditBillingRecords([...data.billingRecords]);
-                    }}>Edit Bills</button>
-                  ) : (
+                  {!isBillingEditing && !isAddingNewBill ? (
+                    <div className="edit-actions">
+                      <button className="edit-link-btn" onClick={() => setIsAddingNewBill(true)}>Add Bill</button>
+                      <button className="edit-link-btn" onClick={() => {
+                        setIsBillingEditing(true);
+                        setEditBillingRecords([...data.billingRecords]);
+                      }}>Edit Bills</button>
+                    </div>
+                  ) : isBillingEditing ? (
                     <div className="edit-actions">
                       <button className="btn-small save" onClick={handleSaveBilling}>Save All</button>
                       <button className="btn-small cancel" onClick={() => setIsBillingEditing(false)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="edit-actions">
+                      <button className="btn-small save" onClick={handleAddBill}>Create Bill</button>
+                      <button className="btn-small cancel" onClick={() => setIsAddingNewBill(false)}>Cancel</button>
                     </div>
                   )}
                 </div>
@@ -330,6 +419,30 @@ function App() {
                 )}
 
                 <div className="invoice-preview">
+                  {isAddingNewBill && (
+                    <div style={{ padding: '1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', marginBottom: '2rem', backgroundColor: 'var(--bg-subtle)' }}>
+                      <div className="invoice-id">NEW INVOICE</div>
+                      <div className="grid-form" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                        <div className="form-group">
+                          <label>Amount ($)</label>
+                          <input type="number" className="edit-input" value={newBilling.amount} onChange={e => setNewBilling({...newBilling, amount: parseFloat(e.target.value) || 0})} />
+                        </div>
+                        <div className="form-group">
+                          <label>Status</label>
+                          <select className="edit-input" value={newBilling.status} onChange={e => setNewBilling({...newBilling, status: e.target.value})}>
+                            <option value="PENDING">PENDING</option>
+                            <option value="PAID">PAID</option>
+                            <option value="OVERDUE">OVERDUE</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <label>Due Date</label>
+                          <input type="date" className="edit-input" value={newBilling.dueDate} onChange={e => setNewBilling({...newBilling, dueDate: e.target.value})} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {(isBillingEditing ? editBillingRecords : data.billingRecords).length > 0 ? (
                     (isBillingEditing ? editBillingRecords : data.billingRecords).map((record, index) => (
                       <div key={record.id} style={{ marginBottom: index !== (isBillingEditing ? editBillingRecords : data.billingRecords).length - 1 ? '2rem' : '0' }}>

@@ -58,4 +58,22 @@
   "amount" : 25000.00,
   "status" : "OVERDUE",
   "dueDate" : "2026-01-27"
+}, {
+  "id" : 11,
+  "patientId" : "P101",
+  "amount" : 150.00,
+  "status" : "PENDING",
+  "dueDate" : "2026-06-01"
+}, {
+  "id" : 12,
+  "patientId" : "P101",
+  "amount" : 1972.00,
+  "status" : "PENDING",
+  "dueDate" : "2026-03-28"
+}, {
+  "id" : 13,
+  "patientId" : "P107",
+  "amount" : 154,
+  "status" : "OVERDUE",
+  "dueDate" : "2026-03-28"
 } ]
